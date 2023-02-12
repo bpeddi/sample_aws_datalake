@@ -15,6 +15,32 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+STATE_MACHINE_ARN = environ["STATE_MACHINE_ARN"]
+SFN_CLIENT = boto3.client("stepfunctions")
+
+
+def invoke_controller_stepfunction(source_bucket, source_key, region):
+    try:
+        stpfn_client = boto3.client('stepfunctions')
+        glue_db_name = "legislators"
+        params = {
+            'database_name': glue_db_name,
+            'region': region,
+            'params': params,
+            'source_bucket': source_bucket,
+            'source_key': source_key,
+            'region': region
+        }
+        logger.info("starting workfow: %s", STATE_MACHINE_ARN)
+        response = SFN_CLIENT.start_execution(
+            stateMachineArn=STATE_MACHINE_ARN,
+            input=json.dumps(params),
+        )
+        logger.debug("response: %s", response)
+    except Exception as e:
+        raise Exception(f'Failed while invoking step function {STATE_MACHINE_ARN}  {params} {e}')
+    
+    
 def lambda_handler(event, context):
     json_event = json.dumps(event)
     logger.info(f'{json_event}')
@@ -28,8 +54,8 @@ def lambda_handler(event, context):
                 logger.info(f'{source_bucket}')
                 logger.info(f'{source_key}')
                 logger.info(f'{region}')
-                
-                
+              
+                invoke_controller_stepfunction(source_bucket,source_key,region)
         except Exception as e:
             logger.info(f'Error Occured {e}')
             return {

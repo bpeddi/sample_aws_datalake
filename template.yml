@@ -228,6 +228,8 @@ Resources:
             FunctionName: !Ref DataLakeCheckGlueCrawler
         - LambdaInvokePolicy:
             FunctionName: !Ref DataLakeRunGlueCrawler
+        - SNSCrudPolicy:  
+            TopicName: !Ref loadSNSTopic        
         - AWSGlueServiceRole
 
   loadSNSTopic:
@@ -254,7 +256,7 @@ Resources:
             Resource: '*'
       Topics:
         - !Ref loadSNSTopic
-        
+
   GlueJobRole:
     Type: AWS::IAM::Role
     Properties:
