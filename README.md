@@ -94,18 +94,6 @@ This stack will load &quot;amazon\_reviews\_parquet &quot; table into DynamoDB.
 
  # Testing the code:
 
- 1. After setting up above solution, you should have a step function as shown below, you can manually start the step function by passing the below payload. You can setup Amazon EventBridge scheduled rule&#39;s cron expression to run this workflow at fixed intervals . You may view Amazon CloudWatch logs and troubleshoot issues if any in the lambda function fails. Below is an example of the execution logs for reference:
-
-![Redshift Architecture](/images/step_pyload.png)
-
- Upon successful run your step function should look as shown below.
-
-![Redshift Architecture](/images/step_function.png)
-
- 1. You could also view DynamoDB table to validate if the data is moved from redshift into DynamoDB table.
-
- 2. Any failures this process send input payload message to dead letter queue, you can subscribe SNS topic to dead letter queue and receive the notification email in case of any failures.
-
  **Conclusion**
 
  Step Functions is a serverless orchestration and Amazon Redshift Data API enables you to painlessly interact with Amazon Redshift and enables you to build event-driven and cloud native applications. We demonstrated how to build an event driven application that can push billions of rows from Redshift into DynamoDB. To learn more about Amazon Redshift Data API, please visit the [documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/data-api.html).
