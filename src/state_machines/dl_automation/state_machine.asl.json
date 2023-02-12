@@ -1,0 +1,102 @@
+{
+  "Comment": "Check previous pipeline running, check for enough data , then start the cluster",
+  "StartAt": "Step 1 - Run Glue Crawler",
+  "States": {
+    "Step 1 - Run Glue Crawler": {
+      "Type": "Task",
+      "Resource": "${RunGlueCrawler}",
+      "TimeoutSeconds": 3600,
+      "Next": "Is GlueCrawler Success?",
+      "ResultPath": "$.StackId",
+      "Parameters": {
+        "state_machine_arn.$": "$.state_machine_arn"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "Is GlueCrawler Success?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.StackId.Status",
+          "StringEquals": "RUNNING",
+          "Next": "Wait 5 minute for previous run"
+        },
+        {
+          "Variable": "$.StackId.Status",
+          "StringEquals": "ERROR",
+          "Next": "Notify SNS"
+        }
+      ],
+      "Default": "Step 3 -start glue pipeline"
+    },
+    "Wait 5 minute for previous run": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "Step 2 - Check Glue Crawler success"
+    },
+    "Step 2 - Check Glue Crawler success": {
+      "Type": "Task",
+      "Resource": "${CheckGlueCrawler}",
+      "TimeoutSeconds": 3600,
+      "Next": "Is GlueCrawler Success?",
+      "ResultPath": "$.StackId",
+      "Parameters": {
+        "state_machine_arn.$": "$.input"
+      }
+    },
+
+    "Step 3 -start glue pipeline": {
+
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${GuleJobName}",
+        "Arguments": {
+          "--WorkerType.$": "$.WorkerType",
+          "--NumberOfWorkers.$": "$.NumberOfWorkers"
+        }
+      },
+      "Comment": "Glue CdcReconcileGlue Process",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Notify SNS",
+          "ResultPath": "$.error-info"
+        }
+      ],
+      "Next": "Pipeline completed succesfully",
+      "OutputPath": "$",
+      "ResultPath": "$.taskresult"
+    },
+    "Notify SNS": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+                "Message.$": "$.error-info.Cause",
+                "TopicArn": "${loadSNSTopicArn}"
+            },
+            "Next": "Pipeline failed"
+    },
+    "Pipeline failed": {
+      "Type": "Fail",
+      "Error": "Fail pipeline",
+      "Cause": "EMR execution step or stack creation/deletion failed."
+    },
+    "Pipeline completed succesfully": {
+      "Type": "Succeed"
+    }
+  }
+}

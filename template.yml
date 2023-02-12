@@ -1,0 +1,290 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Sample data lake
+
+Parameters:
+
+  DlBucketname:
+    Type: String
+    Default: balaaws-s3-ingest-321
+  S3ArtifactBucket: 
+    Type: String
+    Default: balaaws-artifacts-s3-ingest-321
+  GlueNotificationEmail:
+    Type: String
+    Default: balaaws.peddi@gmail.com
+  GuleJobName :
+    Type: String
+    Default: datalake_glue_converter
+
+  # IncomingProcesStateMachineArn : 
+
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DlBucketname
+      AccessControl: BucketOwnerFullControl
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt IncomingSqsQueue.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  ##########################################################################
+  # SQS Queues
+  ##########################################################################
+  IncomingSqsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      # ContentBasedDeduplication: false
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 0
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IncomingSqsQueueDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub "  Data Lake Incoming Queue"
+
+  CreateIngestSQSQueuePolicy:
+    Type: 'AWS::SQS::QueuePolicy'
+    Properties:
+      Queues: 
+        - !Ref IncomingSqsQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SQSWriteaccess
+            Effect: Allow
+            Principal:
+              Service: 
+                - "s3.amazonaws.com"
+                - "lambda.amazonaws.com"
+            Action:
+              - sqs:*
+            Resource: "*"
+
+
+
+  IncomingSqsQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 1209600
+      # QueueName: "datalakeDeleteDLQ"
+      ReceiveMessageWaitTimeSeconds: 0
+      VisibilityTimeout: 180
+
+  # https://aws-data-wrangler.readthedocs.io/en/stable/index.html
+  AwsDataWranglerLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: AwsDataWranglerLayer
+      Description: AwsDataWranglerLayer for python
+      ContentUri:
+        Bucket: !Ref S3ArtifactBucket
+        Key: src/lambda_layers/aws-data-wrangler/awswrangler.zip
+      CompatibleRuntimes:
+        - python3.8
+      LicenseInfo: 'MIT'
+      RetentionPolicy: Retain
+  # https://aws-data-wrangler.readthedocs.io/en/stable/index.html
+
+  # AwsDataWranglerLayer:
+  #   Type: AWS::Serverless::LayerVersion
+  #   Metadata:
+  #     BuildMethod: makefile
+  #   Properties:
+  #     Description: >-
+  #       AWS Data Wrangler Layer
+  #     ContentUri: src/lambda_layers/aws-data-wrangler
+  #     CompatibleRuntimes:
+  #       - python3.8
+
+  ##########################################################################
+  # Lambda Functions
+  #
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
+       # policy templates:
+      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+  ##########################################################################
+
+  DataLakeRunGlueCrawler:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:  ./src/lambda_functions/run_glue_crawler
+      Description: >-
+        Runs glue Crawlers 
+      Runtime: python3.9
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref AwsDataWranglerLayer
+      MemorySize: 256
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref DlBucketname
+      Timeout: 180
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+
+  DataLakeCheckGlueCrawler:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:  ./src/lambda_functions/check_glue_crawler
+      Description: >-
+        Check glue Crawlers status
+      Runtime: python3.9
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref AwsDataWranglerLayer
+      MemorySize: 256
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref DlBucketname
+      Timeout: 180
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+
+  IncomingStarterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/lambda_functions/workflow_starter
+      Description: >-
+        Entry point to the Semarchy XRef Incoming process.
+        Subscribed to an SQS queue and starts the Step Function state machine
+      Runtime: python3.9
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt  IncomingSqsQueue.Arn
+            BatchSize: 10
+            Enabled: true
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref AwsDataWranglerLayer
+      MemorySize: 256
+      # policy templates:
+      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !Ref IncomingSqsQueue
+        - AWSStepFunctionsFullAccess
+        # - StepFunctionsExecutionPolicy:
+        #     StateMachineName:
+        #       !GetAtt IncomingProcesStateMachine.Name
+      # Should match SQS queue visibility timeout
+      Timeout: 180
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          # STATE_MACHINE_ARN: !Ref IncomingProcesStateMachineArn
+          STATE_MACHINE_ARN: !GetAtt IncomingProcesStateMachine.Arn
+          
+  ##########################################################################
+  # Step Functions
+  #
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-step-functions-in-sam.html
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-statemachine.html
+  # IncomingProcesStateMachineRole, IncomingStarterFunctionSQSEvent, IncomingStarterFunctionRole, IncomingProcesStateMachine, IncomingStarterFunction
+  ##########################################################################
+  IncomingProcesStateMachine:
+    Type: AWS::Serverless::StateMachine
+    # DependsOn:
+    #   - IncomingStarterFunction
+    #   - IncomingSqsQueueDLQ
+    Properties:
+      DefinitionUri: ./src/state_machines/dl_automation/state_machine.asl.json
+      # NOTE DefinitionSubstitutions only supports string substitutions
+      # so numeric values don't work
+      DefinitionSubstitutions:
+        loadSNSTopicArn:
+          !Ref loadSNSTopic
+        GuleJobName: !Ref GuleJobName
+        CheckGlueCrawler:
+          !GetAtt DataLakeCheckGlueCrawler.Arn
+        RunGlueCrawler:  !GetAtt DataLakeRunGlueCrawler.Arn
+      # policy templates:
+      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DataLakeCheckGlueCrawler
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DataLakeRunGlueCrawler
+        - AWSGlueServiceRole
+
+  loadSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "DataLake-Notification-Topic-${AWS::StackName}"
+      Subscription:
+        - Endpoint: !Ref GlueNotificationEmail
+          Protocol: email
+      Tags:
+        - Key: Name
+          Value:
+            !Sub "Glue job failure notification for stack: ${AWS::StackName}"
+
+  loadSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: '*'
+      Topics:
+        - !Ref loadSNSTopic
+        
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+
+  DataIngestionGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Description: Glue job for data sync with RDS
+      Name:   !Ref GuleJobName
+      GlueVersion: '4.0'
+      # Connections:
+      #   Connections:
+      #     - !ImportValue glucon-pgrs-srvls-db
+      DefaultArguments:
+        '--schema' : 'legislators'
+        '--table' : 'person_json'
+        '--gluedatabasename': 'legislators'
+      Command:
+        Name: glueetl
+        ScriptLocation: ./src/glue_jobs/datalake_glue_converter.py
+      ExecutionProperty:
+        MaxConcurrentRuns: 10
+      MaxRetries: 0        
+      Role: !Ref GlueJobRole

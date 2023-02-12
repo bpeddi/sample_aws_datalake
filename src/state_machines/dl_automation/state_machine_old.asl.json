@@ -1,0 +1,104 @@
+{
+  "Comment": "Semarchy XRef Incoming",
+  "StartAt": "Run Glue Crawler",
+  "States": {
+    "Run Glue Crawler": {
+      "Type": "Task",
+      "Resource": "${S3ListFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 15,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "ResultPath": "$.Input",
+          "Next": "Send to SQS Dead Letter Queue"
+        }
+      ],
+      "Next": "Check Glue Crawler Status"
+    },
+
+    "Check Glue Crawler Status": {
+      "Type": "Task",
+      "Resource": "${S3ListFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 15,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "Is Glue Crawler Complete?"
+    },
+
+    "Is Glue Crawler Complete?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.s3_objects_count",
+          "NumericEquals": 0,
+          "Next": "Check Glue Crawler Status"
+        }
+      ],
+      "Default": "Run Glue Job"
+    },
+    "Run Glue Job": {
+      "Type": "Task",
+      "Resource": "${S3ListFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 15,
+          "MaxAttempts": 5,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "ResultPath": "$.Input",
+          "Next": "Send to SQS Dead Letter Queue"
+        }
+      ],
+      "Next": "Done"
+    },
+    "Send to SQS Dead Letter Queue": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${DeadLetterQueueUrl}",
+        "MessageBody.$": "$$.Execution.Input",
+        "MessageGroupId.$": "$$.StateMachine.Id",
+        "MessageAttributes": {
+          "ExecutionId": {
+            "DataType": "String",
+            "StringValue.$": "$$.Execution.Id"
+          }
+        }
+      },
+      "Next": "Fail"
+    },
+    "Fail": {
+      "Type": "Fail"
+    },
+    "Done": {
+      "Type": "Succeed"
+    }
+  }
+}
