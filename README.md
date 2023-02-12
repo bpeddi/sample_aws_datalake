@@ -1,12 +1,12 @@
-# Building Event Driven Application to load data into DynamoDB from Redshift using AWS Lambda, Amazon Redshift Data API, Step Function and Event Bridge
+# Building Serverless Data Lake Framework
 
 ## Introduction
 
-Event driven applications are becoming popular with many customers, where application execution happens in response to events. A primary benefit of this architecture is the decoupling of producer and consumer processes, allowing greater flexibility in application design and building decoupled processes. An example of an event driven application that we implemented at our client NSC is an automated Step Function workflow being triggered by an event, which unloads large volumes of Redshift data asynchronously using Redshift Data API and loads this data into DynamoDB table by invoking parallel Lambda function using Step function Map state. This work flow leverages _[Amazon Redshift](https://aws.amazon.com/redshift/),_[AWS Lambda](https://aws.amazon.com/lambda/), [Amazon EventBridge](https://aws.amazon.com/eventbridge/) and [Amazon DynamoDB](https://aws.amazon.com/sns/).
+The Serverless Data Lake Framework (SDLF) is a collection of reusable artifacts aimed at accelerating the delivery of enterprise data lakes on AWS, shortening the deployment time to production from several months to a few weeks. It can be used by AWS teams, partners and customers to implement the foundational structure of a data lake following best practice
 
 ## Solution architecture
 
-This event driven, cost effective serverless architecture offers greater extensibility and simplicity, making it easier to maintain, faster to release new features and also reduce the impact of changes. It also simplifies adding other components or third-party products to the application without much changes.
+An example architecture for a SDLF pipeline is detailed in the diagram above. The entire process is event-driven.
 
 The following architecture diagram highlights the end-to-end solution:
 
