@@ -26,7 +26,6 @@ def invoke_controller_stepfunction(source_bucket, source_key, region):
         params = {
             'database_name': glue_db_name,
             'region': region,
-            'params': params,
             'source_bucket': source_bucket,
             'source_key': source_key,
             'region': region
@@ -38,7 +37,7 @@ def invoke_controller_stepfunction(source_bucket, source_key, region):
         )
         logger.debug("response: %s", response)
     except Exception as e:
-        raise Exception(f'Failed while invoking step function {STATE_MACHINE_ARN}  {params} {e}')
+        raise Exception(f'Failed while invoking step function {STATE_MACHINE_ARN}  {e}')
     
     
 def lambda_handler(event, context):

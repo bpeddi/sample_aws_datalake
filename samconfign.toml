@@ -1,0 +1,13 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "dlapp2"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1lcc8ci3ip2pl"
+s3_prefix = "dlapp2"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "DlBucketname=\"balaawsxx-s3-ingest-321\" S3ArtifactBucket=\"balaaws-artifacts-s3-ingest-321\" GlueNotificationEmail=\"balaaws.peddi@gmail.com\" GuleJobName=\"datalake_glue_converter\""
+image_repositories = []
