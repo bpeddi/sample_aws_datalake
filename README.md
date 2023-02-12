@@ -10,7 +10,7 @@ This event driven, cost effective serverless architecture offers greater extensi
 
 The following architecture diagram highlights the end-to-end solution:
 
-![Redshift Architecture](/images/redshift_to_dynamo.png)
+![Redshift Architecture](/images/s3_data_lake.PNG)
 
 1. Step Function invokes AWS Lambda by passing task token as payload
 2. AWS Lambda function sends Redshift Unload command asynchronously using Redshift Data API. Since we are making asynchronous call using Redshift Data API, Lambda will not run into timeout issues. This function also save the task token into DynamoDB table.
