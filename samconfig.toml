@@ -11,3 +11,32 @@ capabilities = "CAPABILITY_IAM"
 disable_rollback = true
 parameter_overrides = "DlBucketname=\"balaaws-s3-ingest-321\" S3ArtifactBucket=\"balaaws-artifacts-s3-ingest-321\""
 image_repositories = []
+
+
+[dev.deploy]
+[dev.deploy.parameters]
+stack_name = "dlapp"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xoo9u10a14ng"
+s3_prefix = "dlapp"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "DlBucketname=\"balaaws-s3-ingest-321-dev\" S3ArtifactBucket=\"balaaws-artifacts-s3-ingest-321\" GlueNotificationEmail=\"balaaws.peddi@gmail.com\" GuleJobName=\"datalake_glue_converter\""
+image_repositories = []
+
+
+
+
+[prod]
+stack_name = "dlappprod"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1lcc8ci3ip2pl"
+s3_prefix = "dlapp"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "DlBucketname=\"balaaws-s3-ingest-321-prod\" S3ArtifactBucket=\"balaaws-artifacts-s3-ingest-321\""
+image_repositories = []
+
+

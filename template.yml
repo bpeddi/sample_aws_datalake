@@ -90,19 +90,19 @@ Resources:
       ReceiveMessageWaitTimeSeconds: 0
       VisibilityTimeout: 180
 
-  # https://aws-data-wrangler.readthedocs.io/en/stable/index.html
-  AwsDataWranglerLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: AwsDataWranglerLayer
-      Description: AwsDataWranglerLayer for python
-      ContentUri:
-        Bucket: !Ref S3ArtifactBucket
-        Key: src/lambda_layers/aws-data-wrangler/awswrangler.zip
-      CompatibleRuntimes:
-        - python3.8
-      LicenseInfo: 'MIT'
-      RetentionPolicy: Retain
+  # # https://aws-data-wrangler.readthedocs.io/en/stable/index.html
+  # AwsDataWranglerLayer:
+  #   Type: AWS::Serverless::LayerVersion
+  #   Properties:
+  #     LayerName: AwsDataWranglerLayer
+  #     Description: AwsDataWranglerLayer for python
+  #     ContentUri:
+  #       Bucket: !Ref S3ArtifactBucket
+  #       Key: src/lambda_layers/aws-data-wrangler/awswrangler.zip
+  #     CompatibleRuntimes:
+  #       - python3.8
+  #     LicenseInfo: 'MIT'
+  #     RetentionPolicy: Retain
   # https://aws-data-wrangler.readthedocs.io/en/stable/index.html
 
   # AwsDataWranglerLayer:
@@ -132,16 +132,14 @@ Resources:
         Runs glue Crawlers 
       Runtime: python3.9
       Handler: app.lambda_handler
-      Layers:
-        - !Ref AwsDataWranglerLayer
       MemorySize: 256
-      Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref DlBucketname
+      Role: !GetAtt GlueJobRole.Arn
       Timeout: 180
       Environment:
         Variables:
           LOG_LEVEL: INFO
+          glue_admin_role_name: !Ref GlueJobRole
+
 
   DataLakeCheckGlueCrawler:
     Type: AWS::Serverless::Function
@@ -151,8 +149,6 @@ Resources:
         Check glue Crawlers status
       Runtime: python3.9
       Handler: app.lambda_handler
-      Layers:
-        - !Ref AwsDataWranglerLayer
       MemorySize: 256
       Policies:
         - S3ReadPolicy:
@@ -178,8 +174,6 @@ Resources:
             BatchSize: 10
             Enabled: true
       Handler: app.lambda_handler
-      Layers:
-        - !Ref AwsDataWranglerLayer
       MemorySize: 256
       # policy templates:
       # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
@@ -257,6 +251,74 @@ Resources:
       Topics:
         - !Ref loadSNSTopic
 
+
+
+
+
+  # GlueJobRolePolicy:
+  #   Type: 'AWS::IAM::Policy'
+  #   Properties:
+  #     Roles: !Ref GlueJobRole
+  #     PolicyName: plc-inline-glue-controller
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Sid: 'allowGlueAccess'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - 'glue:*'
+  #           Resource:
+  #             - '*'
+  #         - Sid: 'allowEventsSchedulerAccess'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - 'events:*'
+  #           Resource:
+  #             - '*'
+  #         - Sid: 'allowCloudWatchAccess'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - 'cloudwatch:PutMetricData'
+  #           Resource:
+  #             - '*'              
+  #         - Sid: 'allowLogAccess'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - 'logs:PutLogEvents'
+  #             - 'logs:CreateLogGroup'
+  #             - 'logs:CreateLogStream'
+  #             - 'logs:PutLogEvents'           
+  #           Resource:
+  #             - '*'              
+  #         - Sid: 'allowEventAccess'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - 'events:PutRule'
+  #             - 'events:PutTargets'
+  #             - 'events:RemoveTargets'
+  #           Resource:
+  #             - '*'
+  #         - Sid: 'allowPassRole'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - "iam:PassRole"
+  #           Resource:
+  #             - '*'
+  #           Condition:
+  #             StringLike:
+  #               "iam:PassedToService": "glue.amazonaws.com"
+  #         - Sid: 'allowS3Access'
+  #           Effect: 'Allow'
+  #           Action:
+  #             - "s3:ListBucket"
+  #             - "s3:GetObject"
+  #           Resource:
+  #             - "arn:aws:s3:::*raw*/*"
+  #             - "arn:aws:s3:::*raw*"
+
+
+
+
   GlueJobRole:
     Type: AWS::IAM::Role
     Properties:
@@ -264,11 +326,22 @@ Resources:
         Version: 2012-10-17
         Statement:
           - Effect: Allow
-            Principal:
-              Service: glue.amazonaws.com
             Action: sts:AssumeRole
+            Principal:
+              Service: 
+                  - glue.amazonaws.com
+                  - lambda.amazonaws.com
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: DmsS3TargetPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
 
   DataIngestionGlueJob:
     Type: AWS::Glue::Job

@@ -3,55 +3,120 @@
 
 Lists files under an S3 prefix
 """
-import awswrangler as wr
+
 # imports added by Lambda layer
 # pylint: disable=import-error
 # import awswrangler as wr
 
 
 # pylint: enable=import-error
-
+from os import environ
 import boto3
+import logging
+
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
 
 glue = boto3.client("glue")
 
-def create_glue_crawler(crawler_name, database_name, s3_path):
-    response = glue.create_crawler(
-        Name=crawler_name,
-        Role="AWSGlueServiceRoleDefault",
-        DatabaseName=database_name,
-        Description="Glue Crawler for " + database_name,
-        Targets={
-            "S3Targets": [
-                {
-                    "Path": s3_path
-                }
-            ]
-        },
-        Schedule="cron(0 0 * * ? *)",
-        Classifiers=[
-            "parquet",
-            "json"
-        ]
-    )
-    print("Crawler created with name: " + crawler_name)
+glue_admin_role_name = environ['glue_admin_role_name']
 
+# def create_glue_crawler(crawler_name, database_name, s3_path):
+#     response = glue.create_crawler(
+#         Name=crawler_name,
+#         Role="AWSGlueServiceRoleDefault",
+#         DatabaseName=database_name,
+#         Description="Glue Crawler for " + database_name,
+#         Targets={
+#             "S3Targets": [
+#                 {
+#                     "Path": s3_path
+#                 }
+#             ]
+#         },
+#         Schedule="cron(0 0 * * ? *)",
+#         Classifiers=[
+#             "parquet",
+#             "json"
+#         ]
+#     )
+#     print("Crawler created with name: " + crawler_name)
+
+
+# -------------------------------------------------
+# Create new glue crawler
+# -------------------------------------------------
+def create_crawler(glue, glue_db_name, glue_admin_role_name, crawler_name, source_file_path):
+    try:
+        # call the get crawler, if response fails then crawler is not defined
+        response = glue.create_crawler(
+            Name=crawler_name,
+            DatabaseName=glue_db_name,
+            Role=glue_admin_role_name,
+            Description='Crawler to create catalog table ',
+            Targets={
+                'S3Targets': [
+                    {
+                        'Path': source_file_path,
+                        'Exclusions': [ '*/.raw/*']
+                    },
+                ]
+            },
+            SchemaChangePolicy={
+                'UpdateBehavior': 'UPDATE_IN_DATABASE',
+                'DeleteBehavior': 'DELETE_FROM_DATABASE'
+            },
+            Configuration='{ "Version": 1.0, "CrawlerOutput": { "Partitions": { "AddOrUpdateBehavior": "InheritFromTable" } } }',
+            Tags={'app-category': 'daas'}
+        )
+        return response
+    except Exception as e:
+        raise Exception(f'Unable to create crawler! {e}')
+
+# -------------------------------------------------
+# Create the new glue crawler
+# -------------------------------------------------
+def start_crawler(glue_client, crawler_name):
+    try:
+        response = glue_client.start_crawler(
+            Name=crawler_name
+        )
+        return response
+    except Exception as e:
+        raise Exception(f'Unable to start crawler! {e}')
 
 
 def lambda_handler(event, context):
     try:
-        status = wr.catalog.create_database(
-                    name='legislators'
-                )
-        # status= wr.catalog.create_json_table(
-        #             database='default',
-        #             table='persons_json',
-        #             path='s3://balaaws-s3-ingest-321/input_data/persons.json',
+        glue_db_name = "legislators"
 
-        #         )
-        create_glue_crawler("my_crawler", "legislators", "s3://balaaws-s3-ingest-321/input_data/persons.json")
+
+        try : 
+                response = glue.create_database(
+                    DatabaseInput={
+                        'Name': glue_db_name
+                    }
+                )
+                logger.info(f"Glue database '{glue_db_name}' created successfully.")
+        except Exception as e:
+                logger.info(f"Glue database '{glue_db_name}' already exists .")
+
+
+        
+
+
+        
+        source_file_path = "s3://balaaws-s3-ingest-321/input_data/"
+
+        create_crawler(glue,glue_db_name,glue_admin_role_name,"person_crawler",source_file_path)
+        start_crawler(glue,"person_crawler")
+
     except Exception as e:
         raise(e)
 
+    event['status'] = "RUNNING"
 
-    return None
+    return event

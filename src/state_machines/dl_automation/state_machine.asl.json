@@ -8,9 +8,6 @@
       "TimeoutSeconds": 3600,
       "Next": "Is GlueCrawler Success?",
       "ResultPath": "$.StackId",
-      "Parameters": {
-        "state_machine_arn.$": "$.state_machine_arn"
-      },
       "Retry": [
         {
           "ErrorEquals": [
@@ -28,7 +25,7 @@
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.StackId.Status",
+          "Variable": "$.StackId.status",
           "StringEquals": "RUNNING",
           "Next": "Wait 5 minute for previous run"
         },
@@ -51,9 +48,6 @@
       "TimeoutSeconds": 3600,
       "Next": "Is GlueCrawler Success?",
       "ResultPath": "$.StackId",
-      "Parameters": {
-        "state_machine_arn.$": "$.input"
-      }
     },
 
     "Step 3 -start glue pipeline": {
