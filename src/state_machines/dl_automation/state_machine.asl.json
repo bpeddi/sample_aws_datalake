@@ -47,11 +47,10 @@
       "Resource": "${CheckGlueCrawler}",
       "TimeoutSeconds": 3600,
       "Next": "Is GlueCrawler Success?",
-      "ResultPath": "$.StackId",
+      "ResultPath": "$.StackId"
     },
 
     "Step 3 -start glue pipeline": {
-
       "Type": "Task",
       "Resource": "arn:aws:states:::glue:startJobRun.sync",
       "Parameters": {
@@ -64,9 +63,7 @@
       "Comment": "Glue CdcReconcileGlue Process",
       "Catch": [
         {
-          "ErrorEquals": [
-            "States.ALL"
-          ],
+          "ErrorEquals": ["States.ALL"],
           "Next": "Notify SNS",
           "ResultPath": "$.error-info"
         }
@@ -76,13 +73,13 @@
       "ResultPath": "$.taskresult"
     },
     "Notify SNS": {
-            "Type": "Task",
-            "Resource": "arn:aws:states:::sns:publish",
-            "Parameters": {
-                "Message.$": "$.error-info.Cause",
-                "TopicArn": "${loadSNSTopicArn}"
-            },
-            "Next": "Pipeline failed"
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message.$": "$.error-info.Cause",
+        "TopicArn": "${loadSNSTopicArn}"
+      },
+      "Next": "Pipeline failed"
     },
     "Pipeline failed": {
       "Type": "Fail",

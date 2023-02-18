@@ -12,6 +12,7 @@ Lists files under an S3 prefix
 # pylint: enable=import-error
 from os import environ
 import boto3
+import botocore
 import logging
 
 
@@ -89,11 +90,21 @@ def start_crawler(glue_client, crawler_name):
         raise Exception(f'Unable to start crawler! {e}')
 
 
+def is_crawler_not_exist(crawler_name):
+    try:
+        response = glue.get_crawler(Name=crawler_name)
+        print(f"Crawler {crawler_name} exists.")
+        return False
+    except botocore.exceptions.ClientError as e:
+        print(f"Crawler {crawler_name} does not exist.")
+        return True
+
+
 def lambda_handler(event, context):
     try:
         glue_db_name = "legislators"
 
-
+        crawler_name="person_crawler"
         try : 
                 response = glue.create_database(
                     DatabaseInput={
@@ -104,15 +115,12 @@ def lambda_handler(event, context):
         except Exception as e:
                 logger.info(f"Glue database '{glue_db_name}' already exists .")
 
+        source_file_path = "s3://balaaws-s3-ingest-321/input/"
 
+        if is_crawler_not_exist(crawler_name):
+            create_crawler(glue,glue_db_name,glue_admin_role_name,crawler_name,source_file_path)
+            start_crawler(glue, crawler_name)
         
-
-
-        
-        source_file_path = "s3://balaaws-s3-ingest-321/input_data/"
-
-        create_crawler(glue,glue_db_name,glue_admin_role_name,"person_crawler",source_file_path)
-        start_crawler(glue,"person_crawler")
 
     except Exception as e:
         raise(e)

@@ -5,22 +5,20 @@ Description: >-
   Sample data lake
 
 Parameters:
-
   DlBucketname:
     Type: String
     Default: balaaws-s3-ingest-321
-  S3ArtifactBucket: 
+  S3ArtifactBucket:
     Type: String
     Default: balaaws-artifacts-s3-ingest-321
   GlueNotificationEmail:
     Type: String
     Default: balaaws.peddi@gmail.com
-  GuleJobName :
+  GuleJobName:
     Type: String
     Default: datalake_glue_converter
 
-  # IncomingProcesStateMachineArn : 
-
+  # IncomingProcesStateMachineArn :
 
 Resources:
   MyS3Bucket:
@@ -61,9 +59,9 @@ Resources:
           Value: !Sub "  Data Lake Incoming Queue"
 
   CreateIngestSQSQueuePolicy:
-    Type: 'AWS::SQS::QueuePolicy'
+    Type: "AWS::SQS::QueuePolicy"
     Properties:
-      Queues: 
+      Queues:
         - !Ref IncomingSqsQueue
       PolicyDocument:
         Version: "2012-10-17"
@@ -71,14 +69,12 @@ Resources:
           - Sid: SQSWriteaccess
             Effect: Allow
             Principal:
-              Service: 
+              Service:
                 - "s3.amazonaws.com"
                 - "lambda.amazonaws.com"
             Action:
               - sqs:*
             Resource: "*"
-
-
 
   IncomingSqsQueueDLQ:
     Type: AWS::SQS::Queue
@@ -120,16 +116,16 @@ Resources:
   # Lambda Functions
   #
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
-       # policy templates:
-      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+  # policy templates:
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
   ##########################################################################
 
   DataLakeRunGlueCrawler:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri:  ./src/lambda_functions/run_glue_crawler
+      CodeUri: ./src/lambda_functions/run_glue_crawler
       Description: >-
-        Runs glue Crawlers 
+        Runs glue Crawlers
       Runtime: python3.9
       Handler: app.lambda_handler
       MemorySize: 256
@@ -140,19 +136,16 @@ Resources:
           LOG_LEVEL: INFO
           glue_admin_role_name: !Ref GlueJobRole
 
-
   DataLakeCheckGlueCrawler:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri:  ./src/lambda_functions/check_glue_crawler
+      CodeUri: ./src/lambda_functions/check_glue_crawler
       Description: >-
         Check glue Crawlers status
       Runtime: python3.9
       Handler: app.lambda_handler
       MemorySize: 256
-      Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref DlBucketname
+      Role: !GetAtt GlueJobRole.Arn
       Timeout: 180
       Environment:
         Variables:
@@ -170,7 +163,7 @@ Resources:
         SQSEvent:
           Type: SQS
           Properties:
-            Queue: !GetAtt  IncomingSqsQueue.Arn
+            Queue: !GetAtt IncomingSqsQueue.Arn
             BatchSize: 10
             Enabled: true
       Handler: app.lambda_handler
@@ -191,7 +184,7 @@ Resources:
           LOG_LEVEL: INFO
           # STATE_MACHINE_ARN: !Ref IncomingProcesStateMachineArn
           STATE_MACHINE_ARN: !GetAtt IncomingProcesStateMachine.Arn
-          
+
   ##########################################################################
   # Step Functions
   #
@@ -209,12 +202,10 @@ Resources:
       # NOTE DefinitionSubstitutions only supports string substitutions
       # so numeric values don't work
       DefinitionSubstitutions:
-        loadSNSTopicArn:
-          !Ref loadSNSTopic
+        loadSNSTopicArn: !Ref loadSNSTopic
         GuleJobName: !Ref GuleJobName
-        CheckGlueCrawler:
-          !GetAtt DataLakeCheckGlueCrawler.Arn
-        RunGlueCrawler:  !GetAtt DataLakeRunGlueCrawler.Arn
+        CheckGlueCrawler: !GetAtt DataLakeCheckGlueCrawler.Arn
+        RunGlueCrawler: !GetAtt DataLakeRunGlueCrawler.Arn
       # policy templates:
       # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
       Policies:
@@ -222,8 +213,8 @@ Resources:
             FunctionName: !Ref DataLakeCheckGlueCrawler
         - LambdaInvokePolicy:
             FunctionName: !Ref DataLakeRunGlueCrawler
-        - SNSCrudPolicy:  
-            TopicName: !Ref loadSNSTopic        
+        - SNSCrudPolicy:
+            TopicName: !Ref loadSNSTopic
         - AWSGlueServiceRole
 
   loadSNSTopic:
@@ -235,8 +226,7 @@ Resources:
           Protocol: email
       Tags:
         - Key: Name
-          Value:
-            !Sub "Glue job failure notification for stack: ${AWS::StackName}"
+          Value: !Sub "Glue job failure notification for stack: ${AWS::StackName}"
 
   loadSNSTopicPolicy:
     Type: AWS::SNS::TopicPolicy
@@ -247,13 +237,9 @@ Resources:
             Principal:
               Service: events.amazonaws.com
             Action: sns:Publish
-            Resource: '*'
+            Resource: "*"
       Topics:
         - !Ref loadSNSTopic
-
-
-
-
 
   # GlueJobRolePolicy:
   #   Type: 'AWS::IAM::Policy'
@@ -280,16 +266,16 @@ Resources:
   #           Action:
   #             - 'cloudwatch:PutMetricData'
   #           Resource:
-  #             - '*'              
+  #             - '*'
   #         - Sid: 'allowLogAccess'
   #           Effect: 'Allow'
   #           Action:
   #             - 'logs:PutLogEvents'
   #             - 'logs:CreateLogGroup'
   #             - 'logs:CreateLogStream'
-  #             - 'logs:PutLogEvents'           
+  #             - 'logs:PutLogEvents'
   #           Resource:
-  #             - '*'              
+  #             - '*'
   #         - Sid: 'allowEventAccess'
   #           Effect: 'Allow'
   #           Action:
@@ -316,9 +302,6 @@ Resources:
   #             - "arn:aws:s3:::*raw*/*"
   #             - "arn:aws:s3:::*raw*"
 
-
-
-
   GlueJobRole:
     Type: AWS::IAM::Role
     Properties:
@@ -328,11 +311,12 @@ Resources:
           - Effect: Allow
             Action: sts:AssumeRole
             Principal:
-              Service: 
-                  - glue.amazonaws.com
-                  - lambda.amazonaws.com
+              Service:
+                - glue.amazonaws.com
+                - lambda.amazonaws.com
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Policies:
         - PolicyName: DmsS3TargetPolicy
           PolicyDocument:
@@ -341,25 +325,25 @@ Resources:
               - Effect: Allow
                 Action:
                   - iam:PassRole
-                Resource: '*'
+                Resource: "*"
 
   DataIngestionGlueJob:
     Type: AWS::Glue::Job
     Properties:
       Description: Glue job for data sync with RDS
-      Name:   !Ref GuleJobName
-      GlueVersion: '4.0'
+      Name: !Ref GuleJobName
+      GlueVersion: "4.0"
       # Connections:
       #   Connections:
       #     - !ImportValue glucon-pgrs-srvls-db
       DefaultArguments:
-        '--schema' : 'legislators'
-        '--table' : 'person_json'
-        '--gluedatabasename': 'legislators'
+        "--schema": "legislators"
+        "--table": "person_json"
+        "--gluedatabasename": "legislators"
       Command:
         Name: glueetl
         ScriptLocation: ./src/glue_jobs/datalake_glue_converter.py
       ExecutionProperty:
         MaxConcurrentRuns: 10
-      MaxRetries: 0        
+      MaxRetries: 0
       Role: !Ref GlueJobRole

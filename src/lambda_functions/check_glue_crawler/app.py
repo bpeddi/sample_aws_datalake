@@ -20,16 +20,22 @@ logger.setLevel(logging.INFO)
 
 
 
-glue = boto3.client("glue")
-glue_admin_role_name = environ["glue_admin_role_name"]
+glue_client = boto3.client("glue")
+#glue_admin_role_name = environ['glue_admin_role_name']
+
+
+crawler_name = 'person_crawler'
 
 
 def lambda_handler(event, context):
     try:
-        print("Write code to check Crawler status and retun SUCESS")
-
-
+        # get the crawler details
+        response = glue_client.get_crawler(Name=crawler_name)
+        # extract the crawler status
+        crawler_status = response['Crawler']['State']
+        logger.info(f' Status = {crawler_status}')
     except Exception as e:
+        #event['status'] = "ERROR"
         raise(e)
-    event['status'] = "ERROR"
-    return event
+        
+    return crawler_status
